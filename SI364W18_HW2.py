@@ -11,10 +11,11 @@
 #############################
 ##### IMPORT STATEMENTS #####
 #############################
-from flask import Flask, request, render_template, url_for
+from flask import Flask, request, render_template, url_for, redirect, flash
 from flask_wtf import FlaskForm
 from wtforms import StringField, SubmitField, RadioField, ValidationError
 from wtforms.validators import Required
+import requests
 
 #####################
 ##### APP SETUP #####
@@ -27,8 +28,10 @@ app.config['SECRET_KEY'] = 'hardtoguessstring'
 ###### FORMS #######
 ####################
 
-
-
+class AlbumEntryForm(FlaskForm):
+	album = StringField('Enter the name of an album:', validators=[Required()])
+	rating = RadioField('How much do you like this album? (1 low, 3 high)', choices=[('1', '1'), ('2', '2'), ('3', '3')], validators=[Required()])
+	submit = SubmitField('Submit')
 
 ####################
 ###### ROUTES ######
@@ -43,6 +46,40 @@ def hello_world():
 def hello_user(name):
     return '<h1>Hello {0}<h1>'.format(name)
 
+@app.route('/artistform')
+def artist_form():
+	return render_template('artistform.html')
+
+@app.route('/artistinfo', methods=['GET', 'POST'])
+def artist_info():
+	if request.method == 'GET':
+		to_search = request.args['artist']
+		search_results = requests.get('https://itunes.apple.com/search?entity=song&term=' + to_search).json()
+		return render_template('artist_info.html', objects=search_results['results'])
+
+@app.route('/artistlinks')
+def artist_links():
+	return render_template('artist_links.html')
+
+@app.route('/specific/song/<artist_name>')
+def specific_song(artist_name):
+	song_results = requests.get('https://itunes.apple.com/search?entity=song&term=' + artist_name).json()
+	return render_template('artist_info.html', objects=song_results['results'])
+
+@app.route('/album_entry')
+def album_entry():
+	album_form = AlbumEntryForm()
+	return(render_template('album_entry.html', form=album_form))
+
+@app.route('/album_result', methods=['GET', 'POST'])
+def album_result():
+	form = AlbumEntryForm(request.form)
+	if request.method == 'POST' and form.validate_on_submit():
+		album = form.album.data
+		rating = form.rating.data
+		return (render_template('album_result.html', album=album, rating=rating))
+	flash('ERROR -- All fields are required.')
+	return(redirect(url_for('album_entry')))
 
 if __name__ == '__main__':
     app.run(use_reloader=True,debug=True)
